@@ -5,8 +5,8 @@ plugins {
 }
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_19
-    targetCompatibility = JavaVersion.VERSION_19
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
 }
 
 apply plugin: 'io.spring.dependency-management'
@@ -32,6 +32,8 @@ dependencies {
     // Тестовые зависимости
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.kafka:spring-kafka-test'
+
+    implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.7.3'
 }
 
 test {

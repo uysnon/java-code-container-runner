@@ -5,7 +5,7 @@ FROM openjdk:17-jdk-alpine
 WORKDIR /app
 
 # Копируем Gradle сборку в контейнер
-COPY ../../build/libs/java-code-container-runner.jar /app/app.jar
+COPY build/libs/java-code-container-runner.jar /app/app.jar
 
 # Открываем порт, который будет слушать наше приложение
 EXPOSE 8080

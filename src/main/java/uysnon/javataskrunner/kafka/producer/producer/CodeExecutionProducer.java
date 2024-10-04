@@ -1,4 +1,4 @@
-package uysnon.javataskrunner.kafka.consumer.producer;
+package uysnon.javataskrunner.kafka.producer.producer;
 
 
 import lombok.RequiredArgsConstructor;
