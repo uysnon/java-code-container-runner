@@ -1,14 +1,21 @@
 package uysnon.javataskrunner.service;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.stereotype.Service;
+import oshi.SystemInfo;
+import oshi.software.os.OperatingSystem;
 import uysnon.javataskrunner.dto.CodeExecutionRequest;
 import uysnon.javataskrunner.dto.CodeExecutionResult;
+import uysnon.javataskrunner.dto.ProcessExecutionStatistics;
+import uysnon.javataskrunner.kafka.monitoring.MonitorRunnable;
 import uysnon.javataskrunner.kafka.producer.producer.CodeExecutionProducer;
 
 import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -18,12 +25,13 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class CodeExecutionService {
 
     private final CodeExecutionProducer codeExecutionProducer;
 
-    public void executeCode(CodeExecutionRequest request) {
+    public void executeCode(String javaBinPath, CodeExecutionRequest request) {
         // Создаем временную директорию для задачи
         Path taskDir;
         try {
@@ -47,7 +55,7 @@ public class CodeExecutionService {
             }
 
             // Компиляция кода
-            int compileExitCode = compileCode(taskDir);
+            int compileExitCode = compileCode(javaBinPath, taskDir);
             if (compileExitCode != 0) {
                 String compileErrors = readFile(taskDir.resolve("compile_errors.txt"));
                 sendErrorResult(request.getTaskId(), "Ошибка компиляции:\n" + compileErrors);
@@ -55,17 +63,7 @@ public class CodeExecutionService {
             }
 
             // Выполнение кода
-            int runExitCode = runCode(taskDir, request);
-            String runOutput = readFile(taskDir.resolve("run_output.txt"));
-            String runErrors = readFile(taskDir.resolve("run_errors.txt"));
-
-            // Отправка результата
-            CodeExecutionResult result = new CodeExecutionResult();
-            result.setTaskId(request.getTaskId());
-            result.setStatus(runExitCode == 0 ? "success" : "error");
-            result.setOutput(runOutput);
-            result.setError(runErrors);
-            result.setExitCode(runExitCode);
+            CodeExecutionResult result = runCode(javaBinPath, taskDir, request);
 
             codeExecutionProducer.sendResult(result);
 
@@ -85,9 +83,9 @@ public class CodeExecutionService {
         }
     }
 
-    private int compileCode(Path taskDir) throws IOException, InterruptedException {
+    private int compileCode(String javaBinPath, Path taskDir) throws IOException, InterruptedException {
         ProcessBuilder compileProcessBuilder = new ProcessBuilder();
-        compileProcessBuilder.command("javac", "-d", taskDir.toString());
+        compileProcessBuilder.command(javaBinPath +  File.separator + "javac", "-d", taskDir.toString());
 
         // Добавляем все .java файлы в команду компиляции
         Files.walk(taskDir)
@@ -101,12 +99,16 @@ public class CodeExecutionService {
         return compileProcess.waitFor();
     }
 
-    private int runCode(Path taskDir, CodeExecutionRequest request) throws IOException, InterruptedException {
+    private CodeExecutionResult runCode(String javaBinPath, Path taskDir, CodeExecutionRequest request) throws IOException, InterruptedException {
         List<String> runCommand = new ArrayList<>();
-        runCommand.add("java");
-        runCommand.add("-cp");
-        runCommand.add(taskDir.toString());
-        runCommand.add(request.getMainClass());
+
+        runCommand.addAll(List.of(
+                javaBinPath +  File.separator + "java",
+                "-cp",
+                taskDir.toString(),
+                request.getMainClass()
+        ));
+
 
         // Добавляем аргументы, если они есть
         if (request.getArguments() != null) {
@@ -118,7 +120,21 @@ public class CodeExecutionService {
         runProcessBuilder.redirectOutput(taskDir.resolve("run_output.txt").toFile());
         runProcessBuilder.redirectError(taskDir.resolve("run_errors.txt").toFile());
 
+
+        // Используем OSHI для получения информации о процессе
+        SystemInfo systemInfo = new SystemInfo();
+        OperatingSystem os = systemInfo.getOperatingSystem();
+
+
         Process runProcess = runProcessBuilder.start();
+        long startTimeMillis = System.currentTimeMillis();
+        long pid = runProcess.pid();
+        log.debug("Запущен процесс с pid = {}", pid);
+
+        // Начинаем мониторинг в отдельном потоке
+        MonitorRunnable monitor = new MonitorRunnable(os, pid);
+        Thread monitorThread = new Thread(monitor);
+        monitorThread.start();
 
         // Передача stdin, если имеется
         if (request.getStdin() != null && !request.getStdin().isEmpty()) {
@@ -129,18 +145,41 @@ public class CodeExecutionService {
         }
 
         // Установка тайм-аута
-        int timeout = request.getTimeout() != null ? request.getTimeout() : 5;
+        int timeout = request.getTimeoutSeconds() != null ? request.getTimeoutSeconds() : 10;
         if (!runProcess.waitFor(timeout, TimeUnit.SECONDS)) {
             runProcess.destroyForcibly();
             throw new RuntimeException("Превышено время выполнения программы.");
         }
+        long endTimeMillis = System.currentTimeMillis();
 
-        return runProcess.exitValue();
+        monitor.stopMonitoring();
+        monitorThread.join();
+
+        ProcessExecutionStatistics processExecutionStatistics = ProcessExecutionStatistics
+                .builder()
+                .timeMs(endTimeMillis - startTimeMillis)
+                .processAvgMemoryUsageBytes((long) monitor.getResult().getAvgMemoryInBytes())
+                .processMaxMemoryUsageBytes(monitor.getResult().getMaxMemoryInBytes())
+                .exitCode(runProcess.exitValue())
+                .build();
+
+        String runOutput = readFile(taskDir.resolve("run_output.txt"));
+        String runErrors = readFile(taskDir.resolve("run_errors.txt"));
+
+        // Отправка результата
+        CodeExecutionResult result = new CodeExecutionResult();
+        result.setTaskId(request.getTaskId());
+        result.setStatus(processExecutionStatistics.getExitCode() == 0 ? "success" : "error");
+        result.setOutput(runOutput);
+        result.setError(runErrors);
+        result.setProcessExecutionStatistics(processExecutionStatistics);
+
+        return result;
     }
 
     private String readFile(Path filePath) throws IOException {
         if (Files.exists(filePath)) {
-            return Files.readString(filePath);
+            return new String(Files.readAllBytes(filePath), StandardCharsets.UTF_8);
         }
         return "";
     }

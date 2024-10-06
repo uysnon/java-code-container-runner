@@ -15,7 +15,6 @@ public class ApplicationConfiguration {
         objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         objectMapper.registerModule(new JavaTimeModule());
         objectMapper.configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
-        // Настройте objectMapper по необходимости
         return objectMapper;
     }
 }

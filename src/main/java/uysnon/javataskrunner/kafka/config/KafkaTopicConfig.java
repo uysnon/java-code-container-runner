@@ -10,12 +10,12 @@ public class KafkaTopicConfig {
     // Создание топика "tasks"
     @Bean
     public NewTopic tasksTopic() {
-        return new NewTopic("tasks", 1, (short) 2);
+        return new NewTopic("tasks", 2, (short) 2);
     }
 
     // Создание топика "results"
     @Bean
     public NewTopic resultsTopic() {
-        return new NewTopic("results", 1, (short) 2);
+        return new NewTopic("results", 2, (short) 2);
     }
 }

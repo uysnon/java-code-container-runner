@@ -9,5 +9,6 @@ public class CodeExecutionResult {
     private String status;
     private String output;
     private String error;
+    private ProcessExecutionStatistics processExecutionStatistics;
     private int exitCode;
 }

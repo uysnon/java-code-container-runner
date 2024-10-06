@@ -34,6 +34,9 @@ dependencies {
     testImplementation 'org.springframework.kafka:spring-kafka-test'
 
     implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.7.3'
+
+    // OSHI для получения информации об ОС https://github.com/oshi/oshi
+    implementation 'com.github.oshi:oshi-core:6.4.4'
 }
 
 test {

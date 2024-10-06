@@ -10,3 +10,11 @@ spring:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092,localhost:9093}
     admin:
       auto-create:  ${KAFKA_IS_NEED_AUTO_CREATE:true}
+
+application:
+  java:
+    versions:
+      8: ${JAVA_BIN_8:}
+      11: ${JAVA_BIN_11:}
+      17: ${JAVA_BIN_17:}
+

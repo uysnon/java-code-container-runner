@@ -1,7 +1,17 @@
-# Используем официальный образ с Java
-FROM openjdk:17-jdk-alpine
+# Базовый образ Alpine для легковесности
+FROM alpine:3.18
 
-# Указываем рабочую директорию внутри контейнера
+# Обновляем пакеты и устанавливаем зависимости
+RUN apk update && apk add --no-cache \
+    bash \
+    curl \
+    ca-certificates \
+    openjdk8 \
+    openjdk11 \
+    openjdk17 \
+    && rm -rf /var/cache/apk/*
+
+# Устанавливаем рабочую директорию
 WORKDIR /app
 
 # Копируем Gradle сборку в контейнер

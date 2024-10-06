@@ -12,5 +12,5 @@ public class CodeExecutionRequest {
     private List<FileData> files;
     private List<String> arguments;
     private String stdin;
-    private Integer timeout;
+    private Integer timeoutSeconds;
 }
