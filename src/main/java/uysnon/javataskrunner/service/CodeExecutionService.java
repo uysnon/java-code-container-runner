@@ -2,7 +2,6 @@ package uysnon.javataskrunner.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-
 import org.springframework.stereotype.Service;
 import oshi.SystemInfo;
 import oshi.software.os.OperatingSystem;
@@ -65,6 +64,7 @@ public class CodeExecutionService {
             // Выполнение кода
             CodeExecutionResult result = runCode(javaBinPath, taskDir, request);
 
+            // Отправка результата
             codeExecutionProducer.sendResult(result);
 
         } catch (Exception e) {
@@ -85,7 +85,7 @@ public class CodeExecutionService {
 
     private int compileCode(String javaBinPath, Path taskDir) throws IOException, InterruptedException {
         ProcessBuilder compileProcessBuilder = new ProcessBuilder();
-        compileProcessBuilder.command(javaBinPath +  File.separator + "javac", "-d", taskDir.toString());
+        compileProcessBuilder.command(javaBinPath + File.separator + "javac", "-d", taskDir.toString());
 
         // Добавляем все .java файлы в команду компиляции
         Files.walk(taskDir)
@@ -103,7 +103,7 @@ public class CodeExecutionService {
         List<String> runCommand = new ArrayList<>();
 
         runCommand.addAll(List.of(
-                javaBinPath +  File.separator + "java",
+                javaBinPath + File.separator + "java",
                 "-cp",
                 taskDir.toString(),
                 request.getMainClass()
@@ -166,7 +166,6 @@ public class CodeExecutionService {
         String runOutput = readFile(taskDir.resolve("run_output.txt"));
         String runErrors = readFile(taskDir.resolve("run_errors.txt"));
 
-        // Отправка результата
         CodeExecutionResult result = new CodeExecutionResult();
         result.setTaskId(request.getTaskId());
         result.setStatus(processExecutionStatistics.getExitCode() == 0 ? "success" : "error");

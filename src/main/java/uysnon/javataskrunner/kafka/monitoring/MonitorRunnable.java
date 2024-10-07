@@ -1,11 +1,9 @@
 package uysnon.javataskrunner.kafka.monitoring;
 
 import lombok.AllArgsConstructor;
-import lombok.Data;
 import lombok.Getter;
 import oshi.software.os.OSProcess;
 import oshi.software.os.OperatingSystem;
-import uysnon.javataskrunner.dto.ProcessExecutionStatistics;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -21,8 +19,6 @@ public class MonitorRunnable implements Runnable {
     @Getter
     private Result result;
 
-    private ProcessExecutionStatistics processExecutionStatistics;
-
     public MonitorRunnable(OperatingSystem os, long pid) {
         this.os = os;
         this.pid = pid;
@@ -35,7 +31,7 @@ public class MonitorRunnable implements Runnable {
             if (process != null) {
                 memoryUsageBytesStatList.add(process.getResidentSetSize());
                 try {
-                    Thread.sleep(20); // Интервал мониторинга (500 мс)
+                    Thread.sleep(20); // Интервал мониторинга (20 мс)
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     break;
