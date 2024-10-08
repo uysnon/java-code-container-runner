@@ -172,3 +172,114 @@ public class RestTemplateConfig {
         CloseableHttpClient httpClient = HttpClients.custom()
                 .setSSLContext(sslContext)
                 .build();
+
+
+
+@RestController
+@RequestMapping("/api/users")
+public class UserController {
+
+    private final UserSessionService userSessionService;
+
+    public UserController(UserSessionService userSessionService) {
+        this.userSessionService = userSessionService;
+    }
+
+    /**
+     * Получить список всех подключённых пользователей
+     */
+    @GetMapping("/connected")
+    public List<UserSession> getConnectedUsers() {
+        return userSessionService.getAllUserSessions();
+    }
+}
+
+
+
+@Service
+public class UserSessionService {
+
+    // Map<sessionId, UserSession>
+    private final ConcurrentHashMap<String, UserSession> userSessions = new ConcurrentHashMap<>();
+
+    public void addUserSession(UserSession userSession) {
+        userSessions.put(userSession.getSessionId(), userSession);
+    }
+
+    public UserSession removeUserSession(String sessionId) {
+        return userSessions.remove(sessionId);
+    }
+
+    public List<UserSession> getAllUserSessions() {
+        return Collections.unmodifiableList(userSessions.values().stream().collect(Collectors.toList()));
+    }
+}
+
+public class UserSession {
+    private String sessionId;
+    private String userId;
+
+    public UserSession() {}
+
+    public UserSession(String sessionId, String userId) {
+        this.sessionId = sessionId;
+        this.userId = userId;
+    }
+
+    public String getSessionId() {
+        return sessionId;
+    }
+
+    public String getUserId() {
+        return userId;
+    }
+
+    public void setSessionId(String sessionId) {
+        this.sessionId = sessionId;
+    }
+
+    public void setUserId(String userId) {
+        this.userId = userId;
+    }
+}
+
+
+@Component
+public class WebSocketEventListener {
+
+    private final UserSessionService userSessionService;
+    private final SimpMessagingTemplate messagingTemplate;
+
+    public WebSocketEventListener(UserSessionService userSessionService, SimpMessagingTemplate messagingTemplate) {
+        this.userSessionService = userSessionService;
+        this.messagingTemplate = messagingTemplate;
+    }
+
+    @EventListener
+    public void handleWebSocketConnectListener(SessionConnectedEvent event) {
+        // Извлечение информации о пользователе из заголовков или параметров запроса
+        // Предположим, что userId передаётся как параметр запроса
+        StompHeaderAccessor accessor = StompHeaderAccessor.wrap(event.getMessage());
+        String userId = accessor.getFirstNativeHeader("userId");
+        String sessionId = accessor.getSessionId();
+
+        if (userId != null) {
+            UserSession userSession = new UserSession(sessionId, userId);
+            userSessionService.addUserSession(userSession);
+            System.out.println("Пользователь подключился: " + userId + ", sessionId: " + sessionId);
+        } else {
+            System.out.println("Пользователь подключился без userId, sessionId: " + accessor.getSessionId());
+        }
+    }
+
+    @EventListener
+    public void handleWebSocketDisconnectListener(SessionDisconnectEvent event) {
+        String sessionId = event.getSessionId();
+        UserSession userSession = userSessionService.removeUserSession(sessionId);
+        if (userSession != null) {
+            System.out.println("Пользователь отключился: " + userSession.getUserId() + ", sessionId: " + sessionId);
+        } else {
+            System.out.println("Отключение с неизвестным sessionId: " + sessionId);
+        }
+    }
+}
