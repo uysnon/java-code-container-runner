@@ -1,0 +1,25 @@
+// Подключение библиотеки SockJS и STOMP
+const socket = new SockJS('http://example.com/websocket-endpoint');
+const stompClient = Stomp.over(socket);
+
+// Установить соединение
+stompClient.connect(
+  { 
+    login: 'username', 
+    passcode: 'password' 
+  }, 
+  function(frame) {
+    console.log('Connected: ' + frame);
+
+    // Подписка на топик
+    stompClient.subscribe('/topic/chat', function(message) {
+      console.log('Получено сообщение: ' + message.body);
+    });
+
+    // Отправка сообщения
+    stompClient.send('/app/chat', {}, 'Привет, мир!');
+  },
+  function(error) {
+    console.error('Ошибка соединения: ' + error);
+  }
+);
