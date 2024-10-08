@@ -150,3 +150,25 @@ public class RestTemplateConfig {
         return new RestTemplate(factory);
     }
 }
+
+
+       // Загружаем KeyStore
+        KeyStore keyStore = KeyStore.getInstance("JKS");
+        File keyStoreFile = new File("src/main/resources/keystore.jks");
+        keyStore.load(new java.io.FileInputStream(keyStoreFile), "password".toCharArray());
+
+        // Загружаем TrustStore
+        KeyStore trustStore = KeyStore.getInstance("JKS");
+        File trustStoreFile = new File("src/main/resources/truststore.jks");
+        trustStore.load(new java.io.FileInputStream(trustStoreFile), "password".toCharArray());
+
+        // Настраиваем SSLContext
+        SSLContext sslContext = SSLContextBuilder.create()
+                .loadKeyMaterial(keyStore, "password".toCharArray()) // ключ из KeyStore
+                .loadTrustMaterial(trustStore, null) // доверенные сертификаты
+                .build();
+
+        // Настраиваем HttpClient с SSL
+        CloseableHttpClient httpClient = HttpClients.custom()
+                .setSSLContext(sslContext)
+                .build();
