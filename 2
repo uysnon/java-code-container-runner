@@ -1,0 +1,23 @@
+import org.springframework.context.event.EventListener;
+import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
+import org.springframework.stereotype.Component;
+import org.springframework.web.socket.messaging.SessionConnectEvent;
+
+@Component
+public class StompEventListener {
+
+    @EventListener
+    public void handleSessionConnectEvent(SessionConnectEvent event) {
+        // Access headers and other session details
+        StompHeaderAccessor headerAccessor = StompHeaderAccessor.wrap(event.getMessage());
+
+        // Example: Retrieve the user or session information
+        String sessionId = headerAccessor.getSessionId();
+        String userName = (String) headerAccessor.getUser().getName();
+
+        // Perform your logic here
+        System.out.println("New STOMP connection established. Session ID: " + sessionId + ", User: " + userName);
+        
+        // You can also access other headers or perform authentication checks
+    }
+}
