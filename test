@@ -1,37 +1,152 @@
-@RestController
-@RequestMapping("/api/tasks")
-public class TaskController {
-    
-    @Autowired
-    private TaskService taskService;
-
-    @PostMapping
-    public ResponseEntity<Task> createTask(@RequestBody Task task) {
-        Task createdTask = taskService.createTask(task);
-        return new ResponseEntity<>(createdTask, HttpStatus.CREATED);
+@PostMapping("/external")
+public ResponseEntity<String> sendTaskToExternalService(@RequestBody String taskDescription) {
+    try {
+        String response = taskService.sendToExternalService(taskDescription);
+        return new ResponseEntity<>(response, HttpStatus.OK);
+    } catch (Exception e) {
+        return new ResponseEntity<>(e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
     }
+}
 
-    @GetMapping("/{id}")
-    public ResponseEntity<Task> getTask(@PathVariable Long id) {
-        Task task = taskService.getTask(id);
-        return new ResponseEntity<>(task, HttpStatus.OK);
-    }
+# Путь к клиентскому сертификату
+ssl.client.cert=path/to/client.crt
+# Путь к приватному ключу
+ssl.client.key=path/to/client.key
+# Пароль к ключевому хранилищу (если требуется)
+ssl.key.password=your_password
 
-    @PutMapping("/{id}")
-    public ResponseEntity<Task> updateTask(@PathVariable Long id, @RequestBody Task taskDetails) {
-        Task updatedTask = taskService.updateTask(id, taskDetails);
-        return new ResponseEntity<>(updatedTask, HttpStatus.OK);
-    }
+@Value("${ssl.client.cert}")
+private String clientCertPath;
 
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteTask(@PathVariable Long id) {
-        taskService.deleteTask(id);
-        return new ResponseEntity<>(HttpStatus.NO_CONTENT);
-    }
+@Value("${ssl.client.key}")
+private String clientKeyPath;
 
-    @GetMapping
-    public ResponseEntity<List<Task>> getAllTasks() {
-        List<Task> tasks = taskService.getAllTasks();
-        return new ResponseEntity<>(tasks, HttpStatus.OK);
+@Value("${ssl.key.password}")
+private String keyPassword;
+
+openssl pkcs12 -export -in your_certificate.crt -inkey your_key.key -out keystore.p12 -name your_alias
+keytool -importkeystore -srckeystore keystore.p12 -srcstoretype PKCS12 -destkeystore keystore.jks -deststoretype JKS
+
+server:
+  ssl:
+    key-store: classpath:keystore.jks
+    key-store-password: your_keystore_password
+    key-alias: your_alias
+    key-store-type: JKS
+
+
+Вы сказали:
+создать jks из crt и key через openssl
+ChatGPT сказал:
+ChatGPT
+
+Чтобы создать файл JKS (Java KeyStore) из сертификата (.crt) и ключа (.key) с помощью OpenSSL, необходимо выполнить несколько шагов:
+
+    Создание P12-файла (PKCS12) из сертификата и ключа: Это необходимо, потому что JKS напрямую не может импортировать .crt и .key, но может импортировать формат PKCS12.
+
+    bash
+
+openssl pkcs12 -export -in your_certificate.crt -inkey your_key.key -out keystore.p12 -name your_alias
+
+Где:
+
+    your_certificate.crt — ваш сертификат.
+    your_key.key — ваш приватный ключ.
+    keystore.p12 — имя выходного файла формата PKCS12.
+    your_alias — алиас для ключа в хранилище.
+
+Конвертация P12 в JKS с помощью keytool: После создания PKCS12 файла можно конвертировать его в JKS с использованием инструмента keytool, который входит в состав JDK.
+
+bash
+
+    keytool -importkeystore -srckeystore keystore.p12 -srcstoretype PKCS12 -destkeystore keystore.jks -deststoretype JKS
+
+    Где:
+        keystore.p12 — ваш P12 файл.
+        keystore.jks — файл выходного JKS.
+
+Во время выполнения этих команд вам будут предложены пароли для хранилища, которые необходимо задать.
+
+Если у вас есть вопросы по настройке этих шагов или дополнительно нужна помощь, дайте знать!
+Вы сказали:
+как скормить этот jks в restClient в spring boot
+ChatGPT сказал:
+ChatGPT
+
+Чтобы использовать JKS в RestTemplate или WebClient для подключения к сервисам с использованием SSL в Spring Boot, нужно выполнить несколько шагов.
+1. Добавьте JKS в ваш проект
+
+Сначала убедитесь, что у вас есть ваш файл JKS (например, keystore.jks), и поместите его в ресурсную папку проекта (например, src/main/resources).
+2. Настройте Spring Boot для использования JKS
+
+Добавьте в application.properties или application.yml настройки для использования хранилища ключей:
+Пример для application.properties:
+
+properties
+
+server.ssl.key-store=classpath:keystore.jks
+server.ssl.key-store-password=your_keystore_password
+server.ssl.key-alias=your_alias
+server.ssl.key-store-type=JKS
+
+Пример для application.yml:
+
+yaml
+
+server:
+  ssl:
+    key-store: classpath:keystore.jks
+    key-store-password: your_keystore_password
+    key-alias: your_alias
+    key-store-type: JKS
+
+3. Настройка RestTemplate для работы с JKS
+
+Чтобы использовать JKS в вашем RestTemplate (или WebClient), нужно создать RestTemplate с настроенным SSL-контекстом. Пример кода для этого:
+Использование RestTemplate с JKS:
+
+java
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
+import org.springframework.web.client.RestTemplate;
+
+import javax.net.ssl.SSLContext;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClients;
+import org.apache.http.ssl.SSLContextBuilder;
+import org.apache.http.conn.ssl.TrustSelfSignedStrategy;
+
+import java.io.File;
+import java.security.KeyStore;
+
+@Configuration
+public class RestTemplateConfig {
+
+    @Bean
+    public RestTemplate restTemplate() throws Exception {
+        // Загрузка JKS хранилища
+        KeyStore keyStore = KeyStore.getInstance("JKS");
+        File keyStoreFile = new File(getClass().getClassLoader().getResource("keystore.jks").getFile());
+        try (FileInputStream keyStoreStream = new FileInputStream(keyStoreFile)) {
+            keyStore.load(keyStoreStream, "your_keystore_password".toCharArray());
+        }
+
+        // Создание SSL-контекста с загруженным JKS
+        SSLContext sslContext = SSLContextBuilder
+                .create()
+                .loadKeyMaterial(keyStore, "your_keystore_password".toCharArray())
+                .loadTrustMaterial(new TrustSelfSignedStrategy()) // Для доверия самоподписанным сертификатам (при необходимости)
+                .build();
+
+        // Создание HTTP-клиента с SSL-контекстом
+        CloseableHttpClient httpClient = HttpClients.custom()
+                .setSSLContext(sslContext)
+                .build();
+
+        // Создание RestTemplate с HTTP-клиентом
+        HttpComponentsClientHttpRequestFactory factory = new HttpComponentsClientHttpRequestFactory(httpClient);
+        return new RestTemplate(factory);
     }
 }
